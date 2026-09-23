@@ -1,0 +1,21 @@
+<?php
+require_once 'config.php';
+kiem_tra_dang_nhap();
+
+$id = (int)($_GET['id'] ?? 0);
+if ($id > 0) {
+    // Tìm và xóa tệp ảnh trong thư mục uploads để tránh đầy dung lượng host
+    $stmt = $pdo->prepare("SELECT image FROM notes WHERE id = ?");
+    $stmt->execute([$id]);
+    $anh = $stmt->fetchColumn();
+
+    if ($anh && file_exists(__DIR__ . '/uploads/' . $anh)) {
+        unlink(__DIR__ . '/uploads/' . $anh);
+    }
+
+    $xoa = $pdo->prepare("DELETE FROM notes WHERE id = ?");
+    $xoa->execute([$id]);
+}
+
+header("Location: index.php");
+exit;
