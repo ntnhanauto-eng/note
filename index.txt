@@ -1,0 +1,469 @@
+<?php
+require_once 'config.php';
+include 'header.php';
+
+// Tiếp nhận tham số tìm kiếm
+$loc_tau = trim($_GET['tau'] ?? '');
+$loc_vi_tri = trim($_GET['vi_tri'] ?? '');
+$loc_trang_thai = trim($_GET['trang_thai'] ?? '');
+$tu_ngay = trim($_GET['tu_ngay'] ?? '');
+$den_ngay = trim($_GET['den_ngay'] ?? '');
+
+$dieu_kien = [];$tham_so = [];
+
+if ($loc_tau !== '') {$dieu_kien[] = "ship_name LIKE ?";
+    $tham_so[] = "%$loc_tau%";
+}
+if ($loc_vi_tri !== '') {$dieu_kien[] = "location LIKE ?";
+    $tham_so[] = "%$loc_vi_tri%";
+}
+if ($loc_trang_thai !== '') {$dieu_kien[] = "status = ?";
+    $tham_so[] =$loc_trang_thai;
+}
+if ($tu_ngay !== '') {$dieu_kien[] = "work_date >= ?";
+    $tham_so[] =$tu_ngay;
+}
+if ($den_ngay !== '') {$dieu_kien[] = "work_date <= ?";
+    $tham_so[] =$den_ngay;
+}
+
+$menh_de_where = !empty($dieu_kien) ? "WHERE " . implode(" AND ", $dieu_kien) : "";
+
+// Đếm tổng số lượng bản ghi thỏa mãn bộ lọc
+$stmt_dem =$pdo->prepare("SELECT COUNT(*) FROM notes $menh_de_where");
+$stmt_dem->execute($tham_so);
+$tong_ban_ghi_loc = (int)$stmt_dem->fetchColumn();
+
+// Xử lý phân trang cố định 15 dòng / trang
+$so_dong_moi_trang = 15;
+$trang_hien_tai = max(1, (int)($_GET['trang'] ?? 1));$tong_so_trang = ceil($tong_ban_ghi_loc / $so_dong_moi_trang) ?: 1;
+$vi_tri_bat_dau = ($trang_hien_tai - 1) *$so_dong_moi_trang;
+
+// Lấy danh sách ghi chú
+$sql = "SELECT * FROM notes $menh_de_where ORDER BY work_date DESC, work_time DESC LIMIT $so_dong_moi_trang OFFSET$vi_tri_bat_dau";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($tham_so);
+$danh_sach_note =$stmt->fetchAll();
+$so_dong_trang_nay = count($danh_sach_note);
+?>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+    <h4 class="fw-bold text-dark mb-2 mb-md-0">
+        <i class="fa-solid fa-list-check text-primary me-2"></i>NHẬT KÝ CÔNG VIỆC CẦN THIẾT
+    </h4>
+    <?php if (isset($_SESSION['user_id'])): ?>
+        <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#noteModal" onclick="lamMoiForm()">
+            <i class="fa-solid fa-circle-plus me-1"></i> Thêm Ghi Chú Mới
+        </button>
+    <?php endif; ?>
+</div>
+
+<!-- Bộ lọc tìm kiếm -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3">
+        <span class="fw-bold text-secondary"><i class="fa-solid fa-filter me-1"></i> BỘ LỌC TÌM KIẾM</span>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small fw-semibold">Tên tàu:</label>
+                <input type="text" name="tau" class="form-control form-control-sm" placeholder="Nhập tên tàu" value="<?= htmlspecialchars($loc_tau); ?>">
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small fw-semibold">Vị trí:</label>
+                <input type="text" name="vi_tri" class="form-control form-control-sm" placeholder="Khu vực/vị trí" value="<?= htmlspecialchars($loc_vi_tri); ?>">
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small fw-semibold">Trạng thái:</label>
+                <select name="trang_thai" class="form-select form-select-sm">
+                    <option value="">-- Tất cả trạng thái --</option>
+                    <option value="Chưa thực hiện" <?= $loc_trang_thai === 'Chưa thực hiện' ? 'selected' : ''; ?>>Chưa thực hiện</option>
+                    <option value="Đang thực hiện" <?= $loc_trang_thai === 'Đang thực hiện' ? 'selected' : ''; ?>>Đang thực hiện</option>
+                    <option value="Hoàn thành" <?= $loc_trang_thai === 'Hoàn thành' ? 'selected' : ''; ?>>Hoàn thành</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small fw-semibold">Từ ngày:</label>
+                <input type="date" name="tu_ngay" class="form-control form-control-sm" value="<?= htmlspecialchars($tu_ngay); ?>">
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small fw-semibold">Đến ngày:</label>
+                <input type="date" name="den_ngay" class="form-control form-control-sm" value="<?= htmlspecialchars($den_ngay); ?>">
+            </div>
+            <div class="col-md-2 col-sm-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i> Lọc
+                </button>
+                <a href="index.php" class="btn btn-outline-secondary btn-sm" title="Đặt lại bộ lọc">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bảng dữ liệu hiển thị -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-hover table-bordered align-middle mb-0 text-nowrap">
+            <thead class="table-light text-center">
+                <tr>
+                    <th style="width: 50px;">STT</th>
+                    <th>Ngày tháng</th>
+                    <th>Giờ phút</th>
+                    <th>Tên tàu</th>
+                    <th>Vị trí</th>
+                    <th style="min-width: 220px;" class="text-wrap">Nội dung công việc</th>
+                    <th>Hình ảnh</th>
+                    <th>Thời hạn</th>
+                    <th>Trạng thái</th>
+                    <th style="min-width: 150px;" class="text-wrap">Ghi chú</th>
+                    <?php if (isset($_SESSION['user_id'])): ?>
+                        <th style="width: 70px;">Thao tác</th>
+                    <?php endif; ?>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($danh_sach_note)): ?>
+                    <tr>
+                        <td colspan="<?= isset($_SESSION['user_id']) ? '11' : '10'; ?>" class="text-center py-4 text-muted">
+                            <i class="fa-regular fa-folder-open fa-2x mb-2 d-block"></i>Không có dữ liệu công việc nào phù hợp.
+                        </td>
+                    </tr>
+                <?php else: 
+                    $thoi_gian_hien_tai = time();
+                    foreach ($danh_sach_note as $index =>$item): 
+                        $thoi_gian_han = strtotime($item['deadline']);
+                        $da_qua_han = ($item['status'] !== 'Hoàn thành' && $thoi_gian_han <$thoi_gian_hien_tai);
+                ?>
+                    <tr class="<?= $da_qua_han ? 'table-qua-han' : ''; ?>">
+                        <td class="text-center fw-bold text-muted"><?= $vi_tri_bat_dau +$index + 1; ?></td>
+                        <td class="text-center"><?= date('d/m/Y', strtotime($item['work_date'])); ?></td>
+                        <td class="text-center fw-semibold"><?= date('H:i', strtotime($item['work_time'])); ?></td>
+                        <td class="fw-bold text-primary"><?= htmlspecialchars($item['ship_name']); ?></td>
+                        <td><?= htmlspecialchars($item['location']); ?></td>
+                        <td class="text-wrap"><?= nl2br(htmlspecialchars($item['content'])); ?></td>
+                        <td class="text-center">
+                            <?php if (!empty($item['image'])): ?>
+                                <a href="uploads/<?= htmlspecialchars($item['image']); ?>" target="_blank" title="Bấm để xem ảnh to">
+                                    <img src="uploads/<?= htmlspecialchars($item['image']); ?>" class="rounded border shadow-sm" style="width: 48px; height: 48px; object-fit: cover;">
+                                </a>
+                            <?php else: ?>
+                                <span class="badge bg-light text-secondary border">Không ảnh</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <div><?= date('d/m/Y H:i', $thoi_gian_han); ?></div>
+                            <?php if ($da_qua_han): ?>
+                                <span class="badge bg-danger canh-bao-qua-han mt-1">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i>QUÁ HẠN!
+                                </span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-center">
+                            <?php if ($item['status'] === 'Hoàn thành'): ?>
+                                <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Hoàn thành</span>
+                            <?php elseif ($item['status'] === 'Đang thực hiện'): ?>
+                                <span class="badge bg-warning text-dark"><i class="fa-solid fa-spinner fa-spin me-1"></i>Đang thực hiện</span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary"><i class="fa-solid fa-hourglass-start me-1"></i>Chưa thực hiện</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-wrap small text-secondary"><?= htmlspecialchars($item['note_text'] ?? ''); ?></td>
+                        
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <td class="text-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary border-0" type="button" data-bs-toggle="dropdown" title="Nhấn để Sửa hoặc Xóa">
+                                        <i class="fa-solid fa-pen-to-square text-primary fa-lg"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                                        <li>
+                                            <a class="dropdown-item py-2" href="javascript:void(0)" onclick='suaGhiChu(<?= json_encode($item); ?>)'>
+                                                <i class="fa-solid fa-pen text-warning me-2"></i> Chỉnh sửa
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2 text-danger" href="delete_note.php?id=<?= $item['id']; ?>" onclick="return confirm('Bạn có chắc chắn muốn xóa bản ghi này không?');">
+                                                <i class="fa-solid fa-trash-can me-2"></i> Xóa bỏ
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        <?php endif; ?>
+                    </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Thanh tổng dòng và phân trang -->
+    <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center py-3 gap-2">
+        <div class="fw-semibold small text-muted">
+            <i class="fa-solid fa-chart-simple me-1"></i> 
+            Tổng số dòng trang này: <span class="badge bg-primary fs-6"><?= $so_dong_trang_nay; ?></span> dòng | 
+            Tổng cộng theo bộ lọc: <span class="badge bg-success fs-6"><?= $tong_ban_ghi_loc; ?></span> công việc
+        </div>
+        
+        <?php if ($tong_so_trang > 1): ?>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?= ($trang_hien_tai <= 1) ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['trang' =>$trang_hien_tai - 1])); ?>">
+                            <i class="fa-solid fa-angle-left"></i> Trước
+                        </a>
+                    </li>
+                    <?php for ($p = 1; $p <= $tong_so_trang; $p++): ?>
+                        <li class="page-item <?= ($trang_hien_tai ==$p) ? 'active' : ''; ?>">
+                            <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['trang' => $p])); ?>"><?= $p; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?= ($trang_hien_tai >=$tong_so_trang) ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['trang' =>$trang_hien_tai + 1])); ?>">
+                            Sau <i class="fa-solid fa-angle-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Modal Form Nhập/Sửa Công Việc -->
+<?php if (isset($_SESSION['user_id'])): ?>
+<div class="modal fade" id="noteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <form action="save_note.php" method="POST">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="tieuDeModal">Thêm Ghi Chú Mới</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- Khu vực nhập liệu bằng giọng nói tiếng Việt -->
+                    <div class="alert alert-light border border-primary d-flex align-items-center justify-content-between p-2 mb-3">
+                        <div class="small">
+                            <i class="fa-solid fa-microphone text-primary me-2 fa-lg"></i>
+                            <span id="trangThaiGiongNoi">Bấm mic để đọc tự động điền form</span>
+                        </div>
+                        <button type="button" id="nutMic" class="btn btn-outline-primary btn-sm fw-bold" onclick="batTatGiongNoi()">
+                            <i class="fa-solid fa-microphone me-1"></i> Bắt đầu nói
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="id" id="ghi_chu_id">
+                    <input type="hidden" name="anh_base64" id="anh_base64">
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Ngày thực hiện *</label>
+                            <input type="date" name="work_date" id="work_date" class="form-control" required value="<?= date('Y-m-d'); ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Giờ phút *</label>
+                            <input type="time" name="work_time" id="work_time" class="form-control" required value="<?= date('H:i'); ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Thời hạn hoàn thành *</label>
+                            <input type="datetime-local" name="deadline" id="deadline" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tên tàu *</label>
+                            <input type="text" name="ship_name" id="ship_name" class="form-control" placeholder="Ví dụ: Tàu Vinalines Star" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vị trí kiểm tra / làm việc *</label>
+                            <input type="text" name="location" id="location" class="form-control" placeholder="Ví dụ: Hầm máy số 2" required>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Nội dung công việc cần làm *</label>
+                            <textarea name="content" id="content" class="form-control" rows="3" placeholder="Nhập chi tiết nội dung công việc..." required></textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Trạng thái công việc</label>
+                            <select name="status" id="status" class="form-select">
+                                <option value="Chưa thực hiện">Chưa thực hiện</option>
+                                <option value="Đang thực hiện">Đang thực hiện</option>
+                                <option value="Hoàn thành">Hoàn thành</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Hình ảnh (Hệ thống tự nén < 100KB)</label>
+                            <input type="file" id="chon_anh" class="form-control" accept="image/*" onchange="xuLyNenAnh(this)">
+                            <div id="thongBaoNenAnh" class="form-text text-success fw-bold d-none"></div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Ghi chú thêm</label>
+                            <input type="text" name="note_text" id="note_text" class="form-control" placeholder="Ghi chú người phối hợp, vật tư...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng lại</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Lưu Dữ Liệu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// 1. Tự động nén ảnh xuống dưới 100KB trực tiếp tại Client
+function xuLyNenAnh(input) {
+    if (!input.files || !input.files[0]) return;
+    const tep = input.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const hinhAnh = new Image();
+        hinhAnh.onload = function() {
+            const canvas = document.createElement('canvas');
+            let rong = hinhAnh.width;
+            let cao = hinhAnh.height;
+            const kichThuocMax = 1200;
+
+            if (rong > kichThuocMax || cao > kichThuocMax) {
+                if (rong > cao) {
+                    cao = Math.round((cao * kichThuocMax) / rong);
+                    rong = kichThuocMax;
+                } else {
+                    rong = Math.round((rong * kichThuocMax) / cao);
+                    cao = kichThuocMax;
+                }
+            }
+
+            canvas.width = rong;
+            canvas.height = cao;
+            const context = canvas.getContext('2d');
+            context.drawImage(hinhAnh, 0, 0, rong, cao);
+
+            let chatLuong = 0.85;
+            let chuoiBase64 = canvas.toDataURL('image/jpeg', chatLuong);
+
+            // Thuật toán giảm chất lượng đến khi dung lượng nhỏ hơn 100KB
+            while (chuoiBase64.length * (3/4) > 100 * 1024 && chatLuong > 0.15) {
+                chatLuong -= 0.1;
+                chuoiBase64 = canvas.toDataURL('image/jpeg', chatLuong);
+            }
+
+            document.getElementById('anh_base64').value = chuoiBase64;
+            const thongBao = document.getElementById('thongBaoNenAnh');
+            thongBao.classList.remove('d-none');
+            const dungLuongKb = Math.round(chuoiBase64.length * (3/4) / 1024);
+            thongBao.textContent = `Ảnh đã nén thành công: ~${dungLuongKb} KB (Đạt chuẩn < 100KB)`;
+        };
+        hinhAnh.src = e.target.result;
+    };
+    reader.readAsDataURL(tep);
+}
+
+// 2. Nhận diện giọng nói tiếng Việt tự động điền form
+let boNhanDien;
+let dangThuAm = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const LopGiongNoi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    boNhanDien = new LopGiongNoi();
+    boNhanDien.lang = 'vi-VN';
+    boNhanDien.continuous = false;
+    boNhanDien.interimResults = false;
+
+    boNhanDien.onresult = function(event) {
+        const cauNoi = event.results[0][0].transcript;
+        phanTichGiongNoiVaoForm(cauNoi);
+        dungThuAm();
+    };
+
+    boNhanDien.onerror = function() {
+        dungThuAm();
+    };
+
+    boNhanDien.onend = function() {
+        dungThuAm();
+    };
+}
+
+function batTatGiongNoi() {
+    if (!boNhanDien) {
+        alert("Trình duyệt không hỗ trợ nhận diện giọng nói. Hãy dùng Google Chrome trên điện thoại hoặc máy tính có HTTPS.");
+        return;
+    }
+    if (!dangThuAm) {
+        boNhanDien.start();
+        dangThuAm = true;
+        document.getElementById('nutMic').className = "btn btn-danger btn-sm fw-bold";
+        document.getElementById('nutMic').innerHTML = '<i class="fa-solid fa-microphone-lines fa-fade me-1"></i> Đang lắng nghe...';
+        document.getElementById('trangThaiGiongNoi').innerText = "Nói theo mẫu: 'Tàu [tên], vị trí [vị trí], nội dung [nội dung]'";
+    } else {
+        boNhanDien.stop();
+        dungThuAm();
+    }
+}
+
+function dungThuAm() {
+    dangThuAm = false;
+    document.getElementById('nutMic').className = "btn btn-outline-primary btn-sm fw-bold";
+    document.getElementById('nutMic').innerHTML = '<i class="fa-solid fa-microphone me-1"></i> Bắt đầu nói';
+    document.getElementById('trangThaiGiongNoi').innerText = "Bấm mic để đọc tự động điền form";
+}
+
+function phanTichGiongNoiVaoForm(vanBan) {
+    const chuThuong = vanBan.toLowerCase();
+    
+    // Tự động bóc tách các từ khóa
+    const khopTau = chuThuong.match(/tàu\s+([^,]+?)(?=\s+vị trí|\s+nội dung|$)/i);
+    const khopViTri = chuThuong.match(/vị trí\s+([^,]+?)(?=\s+nội dung|\s+tàu|$)/i);
+    const khopNoiDung = chuThuong.match(/nội dung\s+(.+)$/i);
+
+    if (khopTau) document.getElementById('ship_name').value = khopTau[1].trim();
+    if (khopViTri) document.getElementById('location').value = khopViTri[1].trim();
+    
+    if (khopNoiDung) {
+        document.getElementById('content').value = khopNoiDung[1].trim();
+    } else if (!khopTau && !khopViTri) {
+        // Trường hợp nói tự do không theo cấu trúc, điền toàn bộ vào nội dung
+        document.getElementById('content').value = vanBan;
+    }
+}
+
+// 3. Khởi tạo & nạp dữ liệu Modal Sửa / Thêm
+function lamMoiForm() {
+    document.getElementById('tieuDeModal').textContent = "Thêm Ghi Chú Mới";
+    document.getElementById('ghi_chu_id').value = '';
+    document.getElementById('ship_name').value = '';
+    document.getElementById('location').value = '';
+    document.getElementById('content').value = '';
+    document.getElementById('note_text').value = '';
+    document.getElementById('anh_base64').value = '';
+    document.getElementById('chon_anh').value = '';
+    document.getElementById('thongBaoNenAnh').classList.add('d-none');
+}
+
+function suaGhiChu(duLieu) {
+    document.getElementById('tieuDeModal').textContent = "Cập Nhật Ghi Chú Công Việc";
+    document.getElementById('ghi_chu_id').value = duLieu.id;
+    document.getElementById('work_date').value = duLieu.work_date;
+    document.getElementById('work_time').value = duLieu.work_time;
+    document.getElementById('deadline').value = duLieu.deadline.replace(' ', 'T').slice(0, 16);
+    document.getElementById('ship_name').value = duLieu.ship_name;
+    document.getElementById('location').value = duLieu.location;
+    document.getElementById('content').value = duLieu.content;
+    document.getElementById('status').value = duLieu.status;
+    document.getElementById('note_text').value = duLieu.note_text || '';
+    document.getElementById('anh_base64').value = '';
+    document.getElementById('chon_anh').value = '';
+    document.getElementById('thongBaoNenAnh').classList.add('d-none');
+    
+    new bootstrap.Modal(document.getElementById('noteModal')).show();
+}
+</script>
+<?php endif; ?>
+
+<?php include 'footer.php'; ?>
