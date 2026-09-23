@@ -1,0 +1,25 @@
+<?php
+session_start();
+
+$host = 'localhost';
+$dbname = 'TEN_DATABASE_CUA_BAN';
+$username = 'USER_DATABASE_CUA_BAN';
+$password = 'MAT_KHAU_DATABASE_CUA_BAN';
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (PDOException $e) {
+    die("Lỗi kết nối cơ sở dữ liệu: " . $e->getMessage());
+}
+
+// Kiểm tra quyền đăng nhập
+function kiem_tra_dang_nhap() {
+    if (!isset($_SESSION['user_id'])) {
+        header("Location: login.php");
+        exit;
+    }
+}
+?>
