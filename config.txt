@@ -2,9 +2,9 @@
 session_start();
 
 $host = 'localhost';
-$dbname = 'TEN_DATABASE_CUA_BAN';
-$username = 'USER_DATABASE_CUA_BAN';
-$password = 'MAT_KHAU_DATABASE_CUA_BAN';
+$dbname = 'nacwxjyg_notes';
+$username = 'nacwxjyg_notes';
+$password = 'nguyennhan79';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password, [
