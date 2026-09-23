@@ -38,13 +38,14 @@ $stmt_dem =$pdo->prepare("SELECT COUNT(*) FROM notes $menh_de_where");
 $stmt_dem->execute($tham_so);
 $tong_ban_ghi_loc = (int)$stmt_dem->fetchColumn();
 
-// Xử lý phân trang cố định 15 dòng / trang
+// Phân trang cố định 15 dòng / trang
 $so_dong_moi_trang = 15;
-$trang_hien_tai = max(1, (int)($_GET['trang'] ?? 1));$tong_so_trang = ceil($tong_ban_ghi_loc / $so_dong_moi_trang) ?: 1;
-$vi_tri_bat_dau = ($trang_hien_tai - 1) *$so_dong_moi_trang;
+$trang_hien_tai = max(1, (int)($_GET['trang'] ?? 1));
+$tong_so_trang = (int)ceil($tong_ban_ghi_loc / $so_dong_moi_trang) ?: 1;
+$vi_tri_bat_dau = (int)(($trang_hien_tai - 1) * $so_dong_moi_trang);
 
-// Lấy danh sách ghi chú
-$sql = "SELECT * FROM notes $menh_de_where ORDER BY work_date DESC, work_time DESC LIMIT $so_dong_moi_trang OFFSET$vi_tri_bat_dau";
+// Lấy danh sách ghi chú (ép kiểu số nguyên rõ ràng và thêm khoảng cách chuẩn)
+$sql = "SELECT * FROM notes " . $menh_de_where . " ORDER BY work_date DESC, work_time DESC LIMIT " . (int)$vi_tri_bat_dau . ", " . (int)$so_dong_moi_trang;
 $stmt = $pdo->prepare($sql);
 $stmt->execute($tham_so);
 $danh_sach_note =$stmt->fetchAll();
