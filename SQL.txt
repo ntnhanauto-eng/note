@@ -1,0 +1,24 @@
+CREATE TABLE IF NOT EXISTS `users` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tài khoản: admin / Mật khẩu: Admin@123
+INSERT INTO `users` (`username`, `password`) 
+VALUES ('admin', '$2y$10$wE39y5VdM7ZkVq7M3Q6BceF6r2hO4a2Pq0wY3kK5hZ8Q7N9F.2pmy')
+ON DUPLICATE KEY UPDATE `id`=`id`;
+
+CREATE TABLE IF NOT EXISTS `notes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `work_date` DATE NOT NULL,
+  `work_time` TIME NOT NULL,
+  `ship_name` VARCHAR(100) NOT NULL,
+  `location` VARCHAR(150) NOT NULL,
+  `content` TEXT NOT NULL,
+  `image` VARCHAR(255) DEFAULT NULL,
+  `deadline` DATETIME NOT NULL,
+  `status` ENUM('Chưa thực hiện', 'Đang thực hiện', 'Hoàn thành') DEFAULT 'Chưa thực hiện',
+  `note_text` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
