@@ -4,10 +4,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `password` VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tài khoản: admin / Mật khẩu: Admin@123
+-- Mật khẩu lưu trực tiếp không mã hóa: admin / admin123
 INSERT INTO `users` (`username`, `password`) 
-VALUES ('admin', '$2y$10$wE39y5VdM7ZkVq7M3Q6BceF6r2hO4a2Pq0wY3kK5hZ8Q7N9F.2pmy')
-ON DUPLICATE KEY UPDATE `id`=`id`;
+VALUES ('admin', 'admin123')
+ON DUPLICATE KEY UPDATE `password` = 'admin123';
 
 CREATE TABLE IF NOT EXISTS `notes` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
