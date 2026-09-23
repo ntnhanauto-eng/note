@@ -1,0 +1,12 @@
+</div>
+<footer class="bg-white text-center py-3 border-top mt-auto shadow-sm">
+    <div class="container">
+        <span class="text-muted small">
+            &copy; <?= date('Y'); ?> Hệ Thống Quản Lý Ghi Chú & Nhật Ký Vận Hành Hàng Hải - Triển khai trên 123Host
+        </span>
+    </div>
+</footer>
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
