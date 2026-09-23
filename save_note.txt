@@ -1,0 +1,50 @@
+<?php
+require_once 'config.php';
+kiem_tra_dang_nhap();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id = !empty($_POST['id']) ? (int)$_POST['id'] : null;
+    $ngay_lam = $_POST['work_date'];
+    $gio_lam = $_POST['work_time'];
+    $han_chot = $_POST['deadline'];
+    $ten_tau = trim($_POST['ship_name']);
+    $vi_tri = trim($_POST['location']);
+    $noi_dung = trim($_POST['content']);
+    $trang_thai = $_POST['status'];
+    $ghi_chu_them = trim($_POST['note_text']);
+    $anh_base64 = $_POST['anh_base64'] ?? '';
+
+    $ten_tep_anh = null;
+
+    // Lưu ảnh Base64 nén từ Client thành file vật lý
+    if (!empty($anh_base64) && preg_match('/^data:image\/(\w+);base64,/', $anh_base64)) {
+        $du_lieu_anh = substr($anh_base64, strpos($anh_base64, ',') + 1);
+        $du_lieu_anh = base64_decode($du_lieu_anh);
+        if ($du_lieu_anh !== false) {
+            $thu_muc_upload = __DIR__ . '/uploads/';
+            if (!is_dir($thu_muc_upload)) {
+                mkdir($thu_muc_upload, 0755, true);
+            }
+            $ten_tep_anh = 'tau_' . time() . '_' . rand(100, 999) . '.jpg';
+            file_put_contents($thu_muc_upload . $ten_tep_anh, $du_lieu_anh);
+        }
+    }
+
+    if ($id) {
+        // Cập nhật bản ghi cũ
+        if ($ten_tep_anh) {
+            $stmt = $pdo->prepare("UPDATE notes SET work_date=?, work_time=?, deadline=?, ship_name=?, location=?, content=?, status=?, note_text=?, image=? WHERE id=?");
+            $stmt->execute([$ngay_lam, $gio_lam, $han_chot, $ten_tau, $vi_tri, $noi_dung, $trang_thai, $ghi_chu_them, $ten_tep_anh, $id]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE notes SET work_date=?, work_time=?, deadline=?, ship_name=?, location=?, content=?, status=?, note_text=? WHERE id=?");
+            $stmt->execute([$ngay_lam, $gio_lam, $han_chot, $ten_tau, $vi_tri, $noi_dung, $trang_thai, $ghi_chu_them, $id]);
+        }
+    } else {
+        // Thêm bản ghi mới
+        $stmt = $pdo->prepare("INSERT INTO notes (work_date, work_time, deadline, ship_name, location, content, status, note_text, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$ngay_lam, $gio_lam, $han_chot, $ten_tau, $vi_tri, $noi_dung, $trang_thai, $ghi_chu_them, $ten_tep_anh]);
+    }
+}
+
+header("Location: index.php");
+exit;
