@@ -476,7 +476,7 @@ body {
         <i class="fa-solid fa-layer-group"></i>
         <span>Vui lòng chọn Tàu và Block, sau đó bấm <b>Bắt đầu</b> để xem 3D</span>
       </div>
-      <iframe id="viewerFrame" allowfullscreen></iframe>
+     <iframe id="viewerFrame" allowfullscreen allow="geolocation"></iframe>
     </div>
   </div>
 </div>
