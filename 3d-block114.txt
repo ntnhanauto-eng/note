@@ -167,7 +167,7 @@ body {
   background: #f4f6f8;
 }
 
-/* Cụm nút hành động */
+/* Cụm 2 nút hành động chính */
 .action-btn-group {
   display: flex;
   gap: 10px;
@@ -270,7 +270,7 @@ body {
   position: relative;
 }
 
-/* Viewport Header */
+/* Viewport Header Bố cục Desktop */
 .viewport-header {
   display: flex;
   justify-content: space-between;
@@ -531,7 +531,6 @@ body {
         <div id="blockError" class="error-text">⚠ Vui lòng nhập Block</div>
       </div>
 
-      <!-- Nút Tải 3D và Nút Quét QR -->
       <div class="action-btn-group">
         <button type="submit" class="btn-primary" id="startBtn">
           <i class="fa-solid fa-play"></i> TẢI 3D
@@ -556,7 +555,6 @@ body {
     <div class="loader-bar" id="loadBar"></div>
     
     <div class="viewport-header">
-      <!-- Hàng 1: Tiêu đề và Tải lại -->
       <div class="viewport-top-row">
         <div class="viewport-title">
           <i class="fa-solid fa-cube text-primary"></i>
@@ -567,7 +565,6 @@ body {
         </button>
       </div>
 
-      <!-- Hàng 2: Toàn màn hình, Mở tab mới, Đóng -->
       <div class="viewport-actions">
         <button class="tool-btn" onclick="openFullscreen()">
           <i class="fa-solid fa-expand"></i> Toàn màn
@@ -586,7 +583,13 @@ body {
         <i class="fa-solid fa-layer-group"></i>
         <span>Vui lòng chọn Tàu và Block hoặc <b>Quét QR</b> để xem 3D</span>
       </div>
-      <iframe id="viewerFrame" allowfullscreen allow="geolocation"></iframe>
+      <!-- Cấp toàn bộ quyền định vị geolocation và fullscreen theo chuẩn W3C -->
+      <iframe 
+        id="viewerFrame" 
+        allow="geolocation *; fullscreen *" 
+        sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts allow-top-navigation"
+        allowfullscreen>
+      </iframe>
     </div>
   </div>
 </div>
@@ -629,7 +632,7 @@ let currentManagingType = null;
 let currentLoadedUrl = "";
 let html5QrCode = null;
 
-/* KHỞI TẠO VÀ PHỤC HỒI DỮ LIỆU */
+/* KHỞI TẠO */
 window.addEventListener("DOMContentLoaded", () => {
   updateGreeting();
   getLocation();
@@ -643,30 +646,39 @@ window.addEventListener("DOMContentLoaded", () => {
   restoreActiveViewer();
 });
 
-/* DUY TRÌ TRẠNG THÁI KHI ĐỔI APP */
+/* DUY TRÌ TRẠNG THÁI KHI QUA APP KHÁC QUAY LẠI TRÌNH DUYỆT */
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
+    // Chỉ phục hồi khi iframe bị trình duyệt giải phóng bộ nhớ (trắng trang/about:blank)
+    const frame = document.getElementById("viewerFrame");
+    if (frame && (!frame.src || frame.src === "about:blank" || frame.style.display === "none")) {
+      restoreActiveViewer();
+    }
+  }
+});
+
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    // Nếu lấy từ BFCache của trình duyệt thì không cần reload, giữ nguyên tiến trình
+    return;
+  }
+  const frame = document.getElementById("viewerFrame");
+  if (frame && (!frame.src || frame.src === "about:blank")) {
     restoreActiveViewer();
   }
 });
 
-window.addEventListener("pageshow", () => {
-  restoreActiveViewer();
-});
-
 function restoreActiveViewer() {
-  const savedUrl = sessionStorage.getItem("current3DUrl");
-  const savedTitle = sessionStorage.getItem("current3DTitle");
+  const savedUrl = localStorage.getItem("current3DActiveUrl");
+  const savedTitle = localStorage.getItem("current3DActiveTitle");
 
   if (savedUrl) {
     const frame = document.getElementById("viewerFrame");
-    if (!frame.src || frame.src === "about:blank" || frame.style.display === "none") {
-      currentLoadedUrl = savedUrl;
-      frame.src = savedUrl;
-      frame.style.display = "block";
-      document.getElementById("emptyPlaceholder").style.display = "none";
-      document.getElementById("activeModelLabel").innerHTML = savedTitle || "Đang xem 3D";
-    }
+    currentLoadedUrl = savedUrl;
+    frame.src = savedUrl;
+    frame.style.display = "block";
+    document.getElementById("emptyPlaceholder").style.display = "none";
+    document.getElementById("activeModelLabel").innerHTML = savedTitle || "Đang xem 3D";
   }
 }
 
@@ -757,8 +769,10 @@ document.addEventListener("click", (e) => {
 /* HÀM NẠP URL TRỰC TIẾP VÀO KHUNG HIỂN THỊ CHUNG */
 function loadViewerWithUrl(url, labelText) {
   currentLoadedUrl = url;
-  sessionStorage.setItem("current3DUrl", url);
-  sessionStorage.setItem("current3DTitle", labelText);
+  
+  // Lưu bền vững vào localStorage để không bao giờ mất dù chuyển app hay reload trang
+  localStorage.setItem("current3DActiveUrl", url);
+  localStorage.setItem("current3DActiveTitle", labelText);
 
   const bar = document.getElementById("loadBar");
   bar.style.width = "40%";
@@ -819,12 +833,12 @@ function loadModel3D(customShip, customBlock) {
   loadViewerWithUrl(url, label);
 }
 
-/* PHƯƠNG PHÁP 2: QUÉT QR VÀ NẠP TRỰC TIẾP LINK VÀO KHUNG HIỂN THỊ */
+/* PHƯƠNG PHÁP 2: QUÉT QR VÀ TRUY CẬP TRỰC TIẾP */
 function openQrScanner() {
   document.getElementById("qrModal").classList.add("active");
   html5QrCode = new Html5Qrcode("qrReader");
 
-  const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+  const config = { fps: 15, qrbox: { width: 250, height: 250 } };
   
   html5QrCode.start(
     { facingMode: "environment" }, 
@@ -859,8 +873,7 @@ function handleQrResult(scannedUrl) {
     return;
   }
 
-  // Tự động trích xuất thông tin Tàu & Block nếu link có tham số để cập nhật giao diện
-  let label = "Đang xem: <b>Liên kết từ QR</b>";
+  let label = "Đang xem: <b>Mô hình QR</b>";
   try {
     const parsed = new URL(scannedUrl);
     const ship = parsed.searchParams.get("ship");
@@ -876,7 +889,6 @@ function handleQrResult(scannedUrl) {
     }
   } catch (e) {}
 
-  // Truy cập trực tiếp link vừa quét vào cùng khung hiển thị 3D
   loadViewerWithUrl(scannedUrl, label);
 }
 
@@ -897,8 +909,8 @@ function openExternalTab() {
 }
 
 function closeViewer() {
-  sessionStorage.removeItem("current3DUrl");
-  sessionStorage.removeItem("current3DTitle");
+  localStorage.removeItem("current3DActiveUrl");
+  localStorage.removeItem("current3DActiveTitle");
   currentLoadedUrl = "";
 
   const frame = document.getElementById("viewerFrame");
